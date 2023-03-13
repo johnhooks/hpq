@@ -3,6 +3,10 @@
  */
 import getPath from './get-path';
 
+type MatcherFn<T = any> = (node: Element) => T;
+type MatcherObj = Record<string, MatcherFn>;
+type Matcher = MatcherFn | MatcherObj;
+
 /**
  * Function returning a DOM document created by `createHTMLDocument`. The same
  * document is returned between invocations.
@@ -10,7 +14,7 @@ import getPath from './get-path';
  * @return {Document} DOM document.
  */
 const getDocument = (() => {
-	let doc;
+	let doc: Document | undefined;
 	return () => {
 		if (!doc) {
 			doc = document.implementation.createHTMLDocument('');
@@ -24,11 +28,11 @@ const getDocument = (() => {
  * Given a markup string or DOM element, creates an object aligning with the
  * shape of the matchers object, or the value returned by the matcher.
  *
- * @param  {(string|Element)}  source   Source content
- * @param  {(Object|Function)} matchers Matcher function or object of matchers
- * @return {(Object|*)}                 Matched value(s), shaped by object
+ * @param source   Source content
+ * @param matchers Matcher function or object of matchers
+ * @return         Matched value(s), shaped by object
  */
-export function parse(source, matchers) {
+export function parse(source: string | Element, matchers: Matcher): any {
 	if (!matchers) {
 		return;
 	}
@@ -54,7 +58,7 @@ export function parse(source, matchers) {
 	return Object.keys(matchers).reduce((memo, key) => {
 		memo[key] = parse(source, matchers[key]);
 		return memo;
-	}, {});
+	}, {} as Record<string, any>);
 }
 
 /**
@@ -62,22 +66,27 @@ export function parse(source, matchers) {
  * attribute by property if the attribute exists. If no selector is passed,
  * returns property of the query element.
  *
- * @param  {?string} selector Optional selector
- * @param  {string}  name     Property name
- * @return {*}                Property value
+ * @param selector Optional selector
+ * @param name     Property name
+ * @return         Property value
  */
-export function prop(selector, name) {
+export function prop(name: string): MatcherFn;
+export function prop(selector: string | undefined, name: string): MatcherFn;
+export function prop(arg1: string | undefined, arg2?: string): MatcherFn {
+	let name: string;
+	let selector: string | undefined;
 	if (1 === arguments.length) {
-		name = selector;
-		selector = undefined;
+		name = arg1 as string;
+		selector = undefined
+	} else {
+		name = arg2 as string;
+		selector = arg1;
 	}
-
-	return function (node) {
-		let match = node;
+	return function (node: Element) {
+		let match: Element | null = node;
 		if (selector) {
 			match = node.querySelector(selector);
 		}
-
 		if (match) {
 			return getPath(match, name);
 		}
@@ -89,17 +98,23 @@ export function prop(selector, name) {
  * attribute by name if the attribute exists. If no selector is passed,
  * returns attribute of the query element.
  *
- * @param  {?string} selector Optional selector
- * @param  {string}  name     Attribute name
- * @return {?string}          Attribute value
+ * @param selector Optional selector
+ * @param name     Attribute name
+ * @return         Attribute value
  */
-export function attr(selector, name) {
+export function attr(name: string): MatcherFn;
+export function attr(selector: string | undefined, name: string): MatcherFn;
+export function attr(arg1: string | undefined, arg2?: string): MatcherFn {
+	let name: string;
+	let selector: string | undefined;
 	if (1 === arguments.length) {
-		name = selector;
-		selector = undefined;
+		name = arg1 as string;
+		selector = undefined
+	} else {
+		name = arg2 as string;
+		selector = arg1;
 	}
-
-	return function (node) {
+	return function (node: Element): unknown {
 		const attributes = prop(selector, 'attributes')(node);
 		if (attributes && Object.prototype.hasOwnProperty.call(attributes, name)) {
 			return attributes[name].value;
@@ -112,10 +127,10 @@ export function attr(selector, name) {
  *
  * @see prop()
  *
- * @param  {?string} selector Optional selector
- * @return {string}           Inner HTML
+ * @param selector Optional selector
+ * @return Inner HTML
  */
-export function html(selector) {
+export function html(selector?: string) {
 	return prop(selector, 'innerHTML');
 }
 
@@ -124,10 +139,10 @@ export function html(selector) {
  *
  * @see prop()
  *
- * @param  {?string} selector Optional selector
- * @return {string}           Text content
+ * @param selector Optional selector
+ * @return         Text content
  */
-export function text(selector) {
+export function text(selector?: string) {
 	return prop(selector, 'textContent');
 }
 
@@ -138,12 +153,12 @@ export function text(selector) {
  *
  * @see parse()
  *
- * @param  {string}            selector Selector to match
- * @param  {(Object|Function)} matchers Matcher function or object of matchers
- * @return {Array.<*,Object>}           Array of matched value(s)
+ * @param selector Selector to match
+ * @param matchers Matcher function or object of matchers
+ * @return Matcher function which returns an array of matched value(s)
  */
-export function query(selector, matchers) {
-	return function (node) {
+export function query(selector: string, matchers: Matcher) {
+	return function (node: Element): any[] {
 		const matches = node.querySelectorAll(selector);
 		return [].map.call(matches, (match) => parse(match, matchers));
 	};
